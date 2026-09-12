@@ -1,0 +1,27 @@
+# Development overrides: debug on, DB port published for local artisan/tests.
+services:
+  db:
+    ports:
+      - "${DB_PORT_HOST:-5433}:5432"
+
+  app:
+    ports:
+      - "${APP_PORT:-8080}:8000"
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      LOG_LEVEL: debug
+      APP_URL: http://127.0.0.1:8080
+      APP_KEY: ${APP_KEY:-}
+      SESSION_SECURE_COOKIE: "false"
+      SANCTUM_STATEFUL_DOMAINS: localhost,localhost:8080,127.0.0.1,127.0.0.1:8080
+
+  queue:
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      LOG_LEVEL: debug
+      APP_URL: http://127.0.0.1:8080
+      APP_KEY: ${APP_KEY:-}
+      SESSION_SECURE_COOKIE: "false"
+      SANCTUM_STATEFUL_DOMAINS: localhost,localhost:8080,127.0.0.1,127.0.0.1:8080
