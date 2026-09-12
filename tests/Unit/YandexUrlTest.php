@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Exceptions\YandexParseException;
 use App\Services\Yandex\YandexUrl;
+use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -36,7 +37,25 @@ class YandexUrlTest extends TestCase
                 '998877665544',
                 'shop',
             ],
+            'share redirect with poi uri' => [
+                'https://yandex.com/maps/11034/belaya-kalitva/?mode=poi&poi%5Buri%5D=ymapsbm1%3A%2F%2Forg%3Foid%3D197699001803&utm_source=share',
+                '197699001803',
+                null,
+            ],
         ];
+    }
+
+    public function test_resolves_short_share_link(): void
+    {
+        Http::fake([
+            'https://yandex.com/maps/-/CTtUnHna' => Http::response('', 301, [
+                'Location' => '/maps/11034/belaya-kalitva/?mode=poi&poi%5Buri%5D=ymapsbm1%3A%2F%2Forg%3Foid%3D197699001803&utm_source=share',
+            ]),
+        ]);
+
+        $parsed = YandexUrl::parse('https://yandex.com/maps/-/CTtUnHna');
+
+        $this->assertSame('197699001803', $parsed->yandexId);
     }
 
     public function test_rejects_non_yandex_host(): void

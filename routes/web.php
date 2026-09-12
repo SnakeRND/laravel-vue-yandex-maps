@@ -15,6 +15,9 @@ Route::prefix('api')->group(function () {
         Route::post('/organization', [OrganizationController::class, 'store']);
         Route::post('/organization/reparse', [OrganizationController::class, 'reparse']);
         Route::get('/organization/reviews', [OrganizationController::class, 'reviews']);
+        Route::get('/organization/snapshots', [OrganizationController::class, 'snapshots']);
+        Route::get('/organization/snapshots/{snapshot}', [OrganizationController::class, 'showSnapshot']);
+        Route::get('/organization/snapshots/{snapshot}/reviews', [OrganizationController::class, 'snapshotReviews']);
     });
 });
 

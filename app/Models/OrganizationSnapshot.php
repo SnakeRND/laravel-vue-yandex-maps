@@ -4,11 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OrganizationSnapshot extends Model
 {
     protected $fillable = [
         'organization_id',
+        'yandex_url',
+        'yandex_id',
         'name',
         'average_rating',
         'ratings_count',
@@ -29,5 +32,10 @@ class OrganizationSnapshot extends Model
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
     }
 }

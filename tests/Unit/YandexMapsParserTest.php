@@ -57,4 +57,41 @@ HTML;
         $method->setAccessible(true);
         $method->invoke($parser, $html);
     }
+
+    public function test_signs_yandex_query_deterministically(): void
+    {
+        $parser = new YandexMapsParser;
+        $method = new ReflectionMethod(YandexMapsParser::class, 'signYandexQuery');
+        $method->setAccessible(true);
+
+        $query = [
+            'page' => 1,
+            'ajax' => 1,
+            'businessId' => '178262760593',
+            'ranking' => 'by_time',
+        ];
+
+        $first = $method->invoke($parser, $query);
+        $second = $method->invoke($parser, array_reverse($query, true));
+
+        $this->assertSame($first, $second);
+        $this->assertMatchesRegularExpression('/^\d+$/', $first);
+    }
+
+    public function test_extracts_aspect_ids_from_fixture_shape(): void
+    {
+        $html = <<<'HTML'
+<!DOCTYPE html><html><body>
+<script type="application/json">
+{"aspects":[{"id":"3502067019","text":"Вид","count":10,"positive":8,"neutral":1,"negative":1}]}
+</script>
+</body></html>
+HTML;
+
+        $parser = new YandexMapsParser;
+        $method = new ReflectionMethod(YandexMapsParser::class, 'extractAspects');
+        $method->setAccessible(true);
+
+        $this->assertSame(['3502067019' => 'Вид'], $method->invoke($parser, $html));
+    }
 }

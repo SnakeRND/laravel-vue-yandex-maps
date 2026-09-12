@@ -20,9 +20,8 @@ class ParseOrganizationJob implements ShouldQueue
 
     public int $tries = 3;
 
-    public int $timeout = 300;
+    public int $timeout = 1800;
 
-    /** @var list<int> */
     public array $backoff = [30, 90, 180];
 
     public function __construct(
@@ -38,7 +37,10 @@ class ParseOrganizationJob implements ShouldQueue
 
         $organization->update([
             'parse_status' => Organization::STATUS_PARSING,
-            'parse_progress' => 1,
+            'parse_progress' => $this->attempts() > 1 ? max(1, (int) $organization->parse_progress) : 1,
+            'parse_message' => $this->attempts() > 1
+                ? 'Повторная попытка: снова обходим несколько выдач Яндекса'
+                : 'Загрузка карточки организации…',
             'parse_error' => null,
         ]);
 
@@ -49,12 +51,18 @@ class ParseOrganizationJob implements ShouldQueue
                 originalUrl: $organization->yandex_url,
             );
 
-            $data = $parser->fetchAll($url, function (int $fetched, int $target) use ($organization) {
-                $progress = (int) min(99, max(5, round(($fetched / max($target, 1)) * 100)));
-                $organization->update(['parse_progress' => $progress]);
-            });
+            $data = $parser->fetchAll(
+                $url,
+                function (int $progress, string $message) use ($organization) {
+                    $current = (int) ($organization->fresh()?->parse_progress ?? 0);
+                    $organization->update([
+                        'parse_progress' => max($current, min(99, max(1, $progress))),
+                        'parse_message' => $message,
+                    ]);
+                },
+                $organization->review_cap,
+            );
         } catch (YandexParseException $e) {
-            // No point retrying permanent parse problems.
             if (in_array($e->errorCode, [
                 YandexParseException::MARKUP_CHANGED,
                 YandexParseException::NOT_FOUND,
@@ -70,23 +78,6 @@ class ParseOrganizationJob implements ShouldQueue
         }
 
         DB::transaction(function () use ($organization, $data) {
-            foreach ($data['reviews'] as $review) {
-                Review::query()->updateOrCreate(
-                    [
-                        'organization_id' => $organization->id,
-                        'yandex_review_id' => $review['yandex_review_id'],
-                    ],
-                    [
-                        'author_name' => $review['author_name'],
-                        'rating' => $review['rating'],
-                        'text' => $review['text'],
-                        'reviewed_at' => $review['reviewed_at'],
-                    ]
-                );
-            }
-
-            $storedCount = $organization->reviews()->count();
-
             $organization->update([
                 'name' => $data['name'] ?: $organization->name,
                 'average_rating' => $data['average_rating'],
@@ -94,18 +85,33 @@ class ParseOrganizationJob implements ShouldQueue
                 'reviews_count' => $data['reviews_count'],
                 'parse_status' => Organization::STATUS_READY,
                 'parse_progress' => 100,
+                'parse_message' => null,
                 'parse_error' => null,
                 'parsed_at' => now(),
             ]);
 
-            OrganizationSnapshot::query()->create([
+            $snapshot = OrganizationSnapshot::query()->create([
                 'organization_id' => $organization->id,
+                'yandex_url' => $organization->yandex_url,
+                'yandex_id' => $organization->yandex_id,
                 'name' => $organization->name,
                 'average_rating' => $organization->average_rating,
                 'ratings_count' => $organization->ratings_count,
                 'reviews_count' => $organization->reviews_count,
-                'stored_reviews_count' => $storedCount,
+                'stored_reviews_count' => count($data['reviews']),
             ]);
+
+            foreach ($data['reviews'] as $review) {
+                Review::query()->create([
+                    'organization_id' => $organization->id,
+                    'organization_snapshot_id' => $snapshot->id,
+                    'yandex_review_id' => $review['yandex_review_id'],
+                    'author_name' => $review['author_name'],
+                    'rating' => $review['rating'],
+                    'text' => $review['text'],
+                    'reviewed_at' => $review['reviewed_at'],
+                ]);
+            }
         });
     }
 
@@ -135,6 +141,7 @@ class ParseOrganizationJob implements ShouldQueue
         $organization->update([
             'parse_status' => Organization::STATUS_FAILED,
             'parse_error' => $message,
+            'parse_message' => null,
             'parse_progress' => 0,
         ]);
     }

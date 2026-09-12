@@ -1,15 +1,30 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-maps_reviews}
+      POSTGRES_USER: ${DB_USERNAME:-maps}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
   app:
     build: .
-    ports:
-      - "${APP_PORT:-8080}:8000"
-    environment:
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_URL: ${APP_URL:-http://127.0.0.1:8080}
+    environment: &app-env
       APP_NAME: "Maps Reviews"
-      DB_CONNECTION: sqlite
-      DB_DATABASE: /data/database.sqlite
+      APP_URL: ${APP_URL:-http://127.0.0.1:8080}
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-maps_reviews}
+      DB_USERNAME: ${DB_USERNAME:-maps}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
       QUEUE_CONNECTION: database
       SESSION_DRIVER: database
       CACHE_STORE: database
@@ -18,27 +33,23 @@ services:
       SEED_USER_NAME: ${SEED_USER_NAME:-Demo User}
       YANDEX_BASE_URL: ${YANDEX_BASE_URL:-https://yandex.com}
       SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-localhost,localhost:8080,127.0.0.1,127.0.0.1:8080}
-    volumes:
-      - sqlite_data:/data
+      APP_KEY: ${APP_KEY:-}
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-false}
     command: ["app"]
+    depends_on:
+      db:
+        condition: service_healthy
 
   queue:
     build: .
     environment:
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_URL: ${APP_URL:-http://127.0.0.1:8080}
-      DB_CONNECTION: sqlite
-      DB_DATABASE: /data/database.sqlite
-      QUEUE_CONNECTION: database
-      SESSION_DRIVER: database
-      CACHE_STORE: database
-      YANDEX_BASE_URL: ${YANDEX_BASE_URL:-https://yandex.com}
-    volumes:
-      - sqlite_data:/data
+      <<: *app-env
     command: ["queue"]
     depends_on:
-      - app
+      db:
+        condition: service_healthy
+      app:
+        condition: service_started
 
 volumes:
-  sqlite_data:
+  postgres_data:

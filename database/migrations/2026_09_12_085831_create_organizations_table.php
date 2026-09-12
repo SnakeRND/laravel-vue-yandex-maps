@@ -18,7 +18,6 @@ return new class extends Migration
             $table->decimal('average_rating', 3, 2)->nullable();
             $table->unsignedInteger('ratings_count')->nullable();
             $table->unsignedInteger('reviews_count')->nullable();
-            // pending | parsing | ready | failed
             $table->string('parse_status')->default('pending');
             $table->unsignedTinyInteger('parse_progress')->default(0);
             $table->string('parse_error')->nullable();

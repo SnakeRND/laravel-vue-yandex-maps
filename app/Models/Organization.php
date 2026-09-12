@@ -22,8 +22,10 @@ class Organization extends Model
         'average_rating',
         'ratings_count',
         'reviews_count',
+        'review_cap',
         'parse_status',
         'parse_progress',
+        'parse_message',
         'parse_error',
         'parsed_at',
     ];
@@ -34,6 +36,7 @@ class Organization extends Model
             'average_rating' => 'float',
             'ratings_count' => 'integer',
             'reviews_count' => 'integer',
+            'review_cap' => 'integer',
             'parse_progress' => 'integer',
             'parsed_at' => 'datetime',
         ];

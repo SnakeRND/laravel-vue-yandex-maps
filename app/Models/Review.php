@@ -9,6 +9,7 @@ class Review extends Model
 {
     protected $fillable = [
         'organization_id',
+        'organization_snapshot_id',
         'yandex_review_id',
         'author_name',
         'rating',
@@ -27,5 +28,10 @@ class Review extends Model
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    public function snapshot(): BelongsTo
+    {
+        return $this->belongsTo(OrganizationSnapshot::class, 'organization_snapshot_id');
     }
 }

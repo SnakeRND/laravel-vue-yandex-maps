@@ -11,6 +11,7 @@ export async function login(email, password) {
 }
 
 export async function logout() {
+    await ensureCsrf();
     await axios.post('/api/logout');
 }
 
@@ -21,20 +22,44 @@ export async function fetchMe() {
 
 export async function fetchOrganization() {
     const { data } = await axios.get('/api/organization');
-    return data.organization;
+    return data;
 }
 
-export async function saveOrganization(yandexUrl) {
-    const { data } = await axios.post('/api/organization', { yandex_url: yandexUrl });
+export async function saveOrganization(yandexUrl, reviewCap = null) {
+    await ensureCsrf();
+    const { data } = await axios.post('/api/organization', {
+        yandex_url: yandexUrl,
+        review_cap: reviewCap,
+    });
     return data;
 }
 
 export async function reparseOrganization() {
+    await ensureCsrf();
     const { data } = await axios.post('/api/organization/reparse');
     return data;
 }
 
 export async function fetchReviews(page = 1) {
     const { data } = await axios.get('/api/organization/reviews', { params: { page } });
+    return data;
+}
+
+export async function fetchSnapshots(page = 1) {
+    const { data } = await axios.get('/api/organization/snapshots', {
+        params: { page },
+    });
+    return data;
+}
+
+export async function fetchSnapshot(snapshotId) {
+    const { data } = await axios.get(`/api/organization/snapshots/${snapshotId}`);
+    return data;
+}
+
+export async function fetchSnapshotReviews(snapshotId, page = 1) {
+    const { data } = await axios.get(`/api/organization/snapshots/${snapshotId}/reviews`, {
+        params: { page },
+    });
     return data;
 }

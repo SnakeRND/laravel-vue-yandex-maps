@@ -6,6 +6,7 @@ import { fetchOrganization, reparseOrganization, saveOrganization } from '../api
 const router = useRouter();
 
 const yandexUrl = ref('');
+const reviewCap = ref('');
 const organization = ref(null);
 const loading = ref(false);
 const saving = ref(false);
@@ -13,14 +14,27 @@ const error = ref('');
 const message = ref('');
 let pollTimer = null;
 
+function parsedReviewCap() {
+    const raw = String(reviewCap.value ?? '').trim();
+    if (raw === '') {
+        return null;
+    }
+    const n = Number.parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 async function load() {
     loading.value = true;
     error.value = '';
     try {
-        organization.value = await fetchOrganization();
+        const data = await fetchOrganization();
+        organization.value = data.organization;
         if (organization.value?.yandex_url) {
             yandexUrl.value = organization.value.yandex_url;
         }
+        reviewCap.value = organization.value?.review_cap
+            ? String(organization.value.review_cap)
+            : '';
         maybeStartPolling();
     } catch (e) {
         error.value = e.response?.data?.message || 'Не удалось загрузить настройки.';
@@ -35,12 +49,12 @@ function maybeStartPolling() {
     if (status === 'pending' || status === 'parsing') {
         pollTimer = setInterval(async () => {
             try {
-                organization.value = await fetchOrganization();
+                const data = await fetchOrganization();
+                organization.value = data.organization;
                 if (!['pending', 'parsing'].includes(organization.value?.parse_status)) {
                     stopPolling();
                 }
             } catch {
-                // ignore transient poll errors
             }
         }, 2000);
     }
@@ -59,12 +73,16 @@ async function onSave() {
     message.value = '';
 
     try {
-        const data = await saveOrganization(yandexUrl.value.trim());
+        const data = await saveOrganization(yandexUrl.value.trim(), parsedReviewCap());
         organization.value = data.organization;
+        reviewCap.value = organization.value?.review_cap
+            ? String(organization.value.review_cap)
+            : '';
         message.value = data.message || 'Сохранено.';
         maybeStartPolling();
     } catch (e) {
         error.value = e.response?.data?.errors?.yandex_url?.[0]
+            || e.response?.data?.errors?.review_cap?.[0]
             || e.response?.data?.message
             || 'Не удалось сохранить ссылку.';
     } finally {
@@ -96,9 +114,6 @@ onUnmounted(stopPolling);
     <div class="space-y-6">
         <div>
             <h1 class="text-2xl font-semibold tracking-tight">Настройки</h1>
-            <p class="mt-1 text-sm text-slate-500">
-                Вставьте ссылку на карточку организации в Яндекс.Картах.
-            </p>
         </div>
 
         <div v-if="loading" class="text-sm text-slate-500">Загрузка…</div>
@@ -110,19 +125,42 @@ onUnmounted(stopPolling);
                     v-model="yandexUrl"
                     type="url"
                     required
-                    placeholder="https://yandex.ru/maps/org/название/1234567890/"
+                    placeholder="https://yandex.com/maps/-/short-link"
                     class="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-sky-500"
                 >
             </label>
 
             <p class="text-xs text-slate-400">
-                Пример: https://yandex.com/maps/org/yandex/1124715036/
+                Подходтя ссылки «Поделиться»: https://yandex.com/maps/-/…
+                Или ссылки вида https://yandex.com/maps/org/…/ID/
+            </p>
+
+            <label class="block text-sm">
+                <span class="mb-1 block text-slate-600">Лимит отзывов при парсинге</span>
+                <input
+                    v-model="reviewCap"
+                    type="number"
+                    min="1"
+                    max="100000"
+                    step="1"
+                    placeholder="Без лимита"
+                    class="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-sky-500"
+                >
+            </label>
+            <p class="text-xs text-slate-400">
+                Пустое поле — тянем всё доступное через несколько выдач (сортировки, аспекты, звёзды)
             </p>
 
             <div v-if="organization" class="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 <div>Статус парсинга: <strong>{{ organization.parse_status }}</strong></div>
                 <div v-if="organization.parse_status === 'parsing' || organization.parse_status === 'pending'">
                     Прогресс: {{ organization.parse_progress }}%
+                </div>
+                <div
+                    v-if="organization.parse_message && (organization.parse_status === 'parsing' || organization.parse_status === 'pending')"
+                    class="mt-1 text-slate-500"
+                >
+                    {{ organization.parse_message }}
                 </div>
                 <div v-if="organization.parse_error" class="text-red-600">
                     {{ organization.parse_error }}

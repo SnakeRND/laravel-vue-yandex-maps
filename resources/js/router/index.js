@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import LoginPage from '../pages/LoginPage.vue';
 import SettingsPage from '../pages/SettingsPage.vue';
 import OrganizationPage from '../pages/OrganizationPage.vue';
+import SnapshotPage from '../pages/SnapshotPage.vue';
 import { fetchMe } from '../api';
 
 const router = createRouter({
@@ -9,6 +10,7 @@ const router = createRouter({
     routes: [
         { path: '/login', name: 'login', component: LoginPage, meta: { guest: true } },
         { path: '/', name: 'organization', component: OrganizationPage, meta: { auth: true } },
+        { path: '/snapshots/:id', name: 'snapshot', component: SnapshotPage, meta: { auth: true } },
         { path: '/settings', name: 'settings', component: SettingsPage, meta: { auth: true } },
     ],
 });

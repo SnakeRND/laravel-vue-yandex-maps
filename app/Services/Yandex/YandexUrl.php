@@ -3,10 +3,9 @@
 namespace App\Services\Yandex;
 
 use App\Exceptions\YandexParseException;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Http;
 
-/**
- * Parses and normalizes a public Yandex Maps organization URL.
- */
 class YandexUrl
 {
     public function __construct(
@@ -15,7 +14,7 @@ class YandexUrl
         public readonly string $originalUrl = '',
     ) {}
 
-    public static function parse(string $url): self
+    public static function parse(string $url, bool $allowResolve = true): self
     {
         $url = trim($url);
 
@@ -40,7 +39,12 @@ class YandexUrl
 
         $path = $parts['path'] ?? '';
 
-        // /maps/org/{slug}/{id}/... or /maps/org/{id}/...
+        if ($allowResolve && preg_match('#/maps/-/[^/?]+#', $path)) {
+            $resolved = self::resolveShortLink($url);
+
+            return self::parse($resolved, allowResolve: false);
+        }
+
         if (preg_match('#/maps/org/([^/]+)/(\d{6,})#', $path, $m)) {
             return new self(
                 yandexId: $m[2],
@@ -53,16 +57,55 @@ class YandexUrl
             return new self(yandexId: $m[1], originalUrl: $url);
         }
 
-        // Query form: ?oid=... or orgpage[id]=...
         parse_str($parts['query'] ?? '', $query);
+
+        $poiUri = $query['poi']['uri'] ?? null;
+        if (is_string($poiUri) && preg_match('#oid=(\d{6,})#', $poiUri, $m)) {
+            return new self(yandexId: $m[1], originalUrl: $url);
+        }
+
         $oid = $query['oid'] ?? $query['orgId'] ?? null;
         if (is_string($oid) && preg_match('#^\d{6,}$#', $oid)) {
             return new self(yandexId: $oid, originalUrl: $url);
         }
 
+        if (preg_match('#[?&]oid=(\d{6,})#', $url, $m)) {
+            return new self(yandexId: $m[1], originalUrl: $url);
+        }
+
         throw YandexParseException::invalidUrl(
-            'Не удалось найти ID организации в ссылке. Ожидается вида https://yandex.ru/maps/org/название/1234567890/'
+            'Не удалось найти ID организации. Вставьте ссылку «Поделиться» (https://yandex.com/maps/-/…) или карточку /maps/org/…/ID/'
         );
+    }
+
+    private static function resolveShortLink(string $url): string
+    {
+        try {
+            $response = Http::withHeaders([
+                'User-Agent' => config('yandex.user_agent'),
+                'Accept' => 'text/html,application/xhtml+xml',
+                'Accept-Language' => 'ru-RU,ru;q=0.9',
+            ])
+                ->withOptions(['allow_redirects' => false])
+                ->timeout((int) config('yandex.http_timeout', 25))
+                ->get($url);
+        } catch (ConnectionException $e) {
+            throw YandexParseException::unreachable();
+        }
+
+        $location = $response->header('Location');
+        if (! is_string($location) || $location === '') {
+            throw YandexParseException::invalidUrl(
+                'Не удалось раскрыть короткую ссылку Яндекс.Карт. Попробуйте ссылку на карточку организации.'
+            );
+        }
+
+        if (str_starts_with($location, '/')) {
+            $parts = parse_url($url);
+            $location = ($parts['scheme'] ?? 'https').'://'.($parts['host'] ?? 'yandex.com').$location;
+        }
+
+        return $location;
     }
 
     public function reviewsUrl(string $baseUrl, int $page = 1): string
