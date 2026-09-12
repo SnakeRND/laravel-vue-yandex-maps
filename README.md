@@ -187,7 +187,12 @@ php artisan test
 
 ## Формат сдачи
 
-- Репозиторий: этот проект.
-- Демо на хостинге: поднять `docker compose` на VPS / Railway / Render и прописать
-  `APP_URL` + `SANCTUM_STATEFUL_DOMAINS`. Инструкция выше достаточна для деплоя
-  одного контейнера с воркером.
+- Репозиторий: этот проект (`git` инициализирован локально; запушьте на GitHub/GitLab при сдаче).
+- Локально: `docker compose up --build` → http://127.0.0.1:8080
+- Быстрое публичное демо (пока крутится `php artisan serve` + `cloudflared tunnel`):
+  поднимите туннель `cloudflared tunnel --url http://127.0.0.1:8000`,
+  пропишите хост в `APP_URL` и `SANCTUM_STATEFUL_DOMAINS`.
+- Для постоянного хостинга: VPS / Railway / Render с `docker compose`
+  (сервисы `app` + `queue`) и теми же env-переменными.
+
+Логин по умолчанию: `demo@example.com` / `password`.
