@@ -11,6 +11,7 @@ return new class extends Migration
         Schema::create('reviews', function (Blueprint $table) {
             $table->id();
             $table->foreignId('organization_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('organization_snapshot_id')->constrained('organization_snapshots')->cascadeOnDelete();
             $table->string('yandex_review_id');
             $table->string('author_name')->nullable();
             $table->unsignedTinyInteger('rating')->nullable();
@@ -18,8 +19,8 @@ return new class extends Migration
             $table->timestamp('reviewed_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['organization_id', 'yandex_review_id']);
-            $table->index(['organization_id', 'reviewed_at']);
+            $table->unique(['organization_snapshot_id', 'yandex_review_id']);
+            $table->index(['organization_snapshot_id', 'reviewed_at']);
         });
     }
 

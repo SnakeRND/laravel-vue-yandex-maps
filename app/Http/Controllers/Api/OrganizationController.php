@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\ParseOrganizationJob;
 use App\Models\Organization;
 use App\Models\OrganizationSnapshot;
+use App\Models\Review;
 use App\Services\Yandex\YandexUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,14 +18,8 @@ class OrganizationController extends Controller
     {
         $organization = $this->currentOrganization($request);
 
-        if (! $organization) {
-            return response()->json([
-                'organization' => null,
-            ]);
-        }
-
         return response()->json([
-            'organization' => $this->serializeOrganization($organization),
+            'organization' => $organization ? $this->serializeOrganization($organization) : null,
         ]);
     }
 
@@ -44,34 +39,19 @@ class OrganizationController extends Controller
             ], 422);
         }
 
-        $user = $request->user();
-        $reviewCap = array_key_exists('review_cap', $data) ? $data['review_cap'] : null;
-
-        $organization = Organization::query()
-            ->where('user_id', $user->id)
-            ->first();
-
-        if ($organization) {
-            $organization->update([
+        $organization = Organization::query()->updateOrCreate(
+            ['user_id' => $request->user()->id],
+            [
                 'yandex_url' => $data['yandex_url'],
                 'yandex_id' => $parsed->yandexId,
                 'slug' => $parsed->slug,
-                'review_cap' => $reviewCap,
+                'review_cap' => array_key_exists('review_cap', $data) ? $data['review_cap'] : null,
                 'parse_status' => Organization::STATUS_PENDING,
                 'parse_progress' => 0,
                 'parse_message' => null,
                 'parse_error' => null,
-            ]);
-        } else {
-            $organization = Organization::query()->create([
-                'user_id' => $user->id,
-                'yandex_url' => $data['yandex_url'],
-                'yandex_id' => $parsed->yandexId,
-                'slug' => $parsed->slug,
-                'review_cap' => $reviewCap,
-                'parse_status' => Organization::STATUS_PENDING,
-            ]);
-        }
+            ],
+        );
 
         ParseOrganizationJob::dispatch($organization->id);
 
@@ -117,13 +97,7 @@ class OrganizationController extends Controller
 
         if (! $organization) {
             return response()->json([
-                'snapshots' => [
-                    'data' => [],
-                    'current_page' => 1,
-                    'last_page' => 1,
-                    'total' => 0,
-                    'per_page' => 8,
-                ],
+                'snapshots' => $this->emptyPage(8),
             ]);
         }
 
@@ -152,20 +126,9 @@ class OrganizationController extends Controller
     {
         $this->assertSnapshotOwned($request, $snapshot);
 
-        $reviews = $snapshot->reviews()
-            ->orderByDesc('reviewed_at')
-            ->orderByDesc('id')
-            ->paginate(50);
-
         return response()->json([
             'snapshot' => $this->serializeSnapshot($snapshot),
-            'reviews' => $reviews->through(fn ($review) => [
-                'id' => $review->id,
-                'author_name' => $review->author_name,
-                'rating' => $review->rating,
-                'text' => $review->text,
-                'reviewed_at' => optional($review->reviewed_at)?->toIso8601String(),
-            ]),
+            'reviews' => $this->paginateReviews($snapshot),
         ]);
     }
 
@@ -183,31 +146,14 @@ class OrganizationController extends Controller
             return response()->json([
                 'organization' => $this->serializeOrganization($organization),
                 'snapshot' => null,
-                'reviews' => [
-                    'data' => [],
-                    'current_page' => 1,
-                    'last_page' => 1,
-                    'total' => 0,
-                    'per_page' => 50,
-                ],
+                'reviews' => $this->emptyPage(50),
             ]);
         }
-
-        $reviews = $latestSnapshot->reviews()
-            ->orderByDesc('reviewed_at')
-            ->orderByDesc('id')
-            ->paginate(50);
 
         return response()->json([
             'organization' => $this->serializeOrganization($organization),
             'snapshot' => $this->serializeSnapshot($latestSnapshot),
-            'reviews' => $reviews->through(fn ($review) => [
-                'id' => $review->id,
-                'author_name' => $review->author_name,
-                'rating' => $review->rating,
-                'text' => $review->text,
-                'reviewed_at' => optional($review->reviewed_at)?->toIso8601String(),
-            ]),
+            'reviews' => $this->paginateReviews($latestSnapshot),
         ]);
     }
 
@@ -226,6 +172,26 @@ class OrganizationController extends Controller
         if (! $snapshot->organization || $snapshot->organization->user_id !== $request->user()->id) {
             abort(404);
         }
+    }
+
+    private function paginateReviews(OrganizationSnapshot $snapshot)
+    {
+        return $snapshot->reviews()
+            ->orderByDesc('reviewed_at')
+            ->orderByDesc('id')
+            ->paginate(50)
+            ->through(fn (Review $review) => $this->serializeReview($review));
+    }
+
+    private function emptyPage(int $perPage): array
+    {
+        return [
+            'data' => [],
+            'current_page' => 1,
+            'last_page' => 1,
+            'total' => 0,
+            'per_page' => $perPage,
+        ];
     }
 
     private function serializeOrganization(Organization $organization): array
@@ -265,6 +231,17 @@ class OrganizationController extends Controller
             'reviews_count' => $snapshot->reviews_count,
             'stored_reviews_count' => $snapshot->stored_reviews_count,
             'created_at' => optional($snapshot->created_at)?->toIso8601String(),
+        ];
+    }
+
+    private function serializeReview(Review $review): array
+    {
+        return [
+            'id' => $review->id,
+            'author_name' => $review->author_name,
+            'rating' => $review->rating,
+            'text' => $review->text,
+            'reviewed_at' => optional($review->reviewed_at)?->toIso8601String(),
         ];
     }
 }

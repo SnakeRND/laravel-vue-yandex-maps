@@ -11,6 +11,8 @@ return new class extends Migration
         Schema::create('organization_snapshots', function (Blueprint $table) {
             $table->id();
             $table->foreignId('organization_id')->constrained()->cascadeOnDelete();
+            $table->string('yandex_url')->nullable();
+            $table->string('yandex_id')->nullable();
             $table->string('name')->nullable();
             $table->decimal('average_rating', 3, 2)->nullable();
             $table->unsignedInteger('ratings_count')->nullable();

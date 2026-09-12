@@ -47,11 +47,6 @@ class Organization extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function reviews(): HasMany
-    {
-        return $this->hasMany(Review::class);
-    }
-
     public function snapshots(): HasMany
     {
         return $this->hasMany(OrganizationSnapshot::class);

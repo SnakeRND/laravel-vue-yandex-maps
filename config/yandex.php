@@ -3,8 +3,6 @@
 return [
     'base_url' => env('YANDEX_BASE_URL', 'https://yandex.com'),
 
-    'review_cap' => (int) env('YANDEX_REVIEW_CAP', 0),
-
     'page_size' => 50,
 
     'page_delay_us' => (int) env('YANDEX_PAGE_DELAY_US', 100_000),

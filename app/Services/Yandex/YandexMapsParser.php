@@ -355,23 +355,34 @@ class YandexMapsParser
 
         $mapped = [];
         foreach ($reviews as $raw) {
-            if (! is_array($raw) || empty($raw['reviewId'])) {
+            if (! is_array($raw)) {
                 continue;
             }
 
-            $author = $raw['author'] ?? null;
-            $authorName = is_array($author) ? ($author['name'] ?? null) : null;
-
-            $mapped[] = [
-                'yandex_review_id' => (string) $raw['reviewId'],
-                'author_name' => $authorName,
-                'rating' => isset($raw['rating']) ? (int) $raw['rating'] : null,
-                'text' => isset($raw['text']) ? (string) $raw['text'] : null,
-                'reviewed_at' => $raw['updatedTime'] ?? $raw['time'] ?? null,
-            ];
+            $review = $this->mapRawReview($raw);
+            if ($review !== null) {
+                $mapped[] = $review;
+            }
         }
 
         return $mapped;
+    }
+
+    private function mapRawReview(array $raw): ?array
+    {
+        if (empty($raw['reviewId'])) {
+            return null;
+        }
+
+        $author = $raw['author'] ?? null;
+
+        return [
+            'yandex_review_id' => (string) $raw['reviewId'],
+            'author_name' => is_array($author) ? ($author['name'] ?? null) : null,
+            'rating' => isset($raw['rating']) ? (int) $raw['rating'] : null,
+            'text' => isset($raw['text']) ? (string) $raw['text'] : null,
+            'reviewed_at' => $raw['updatedTime'] ?? $raw['time'] ?? null,
+        ];
     }
 
     private function signYandexQuery(array $query): string
@@ -421,20 +432,7 @@ class YandexMapsParser
     {
         $aspects = [];
 
-        if (! preg_match_all('#<script[^>]*type="application/json"[^>]*>(.*?)</script>#s', $html, $matches)
-            && ! preg_match_all('#<script[^>]*class="state-view"[^>]*>(.*?)</script>#s', $html, $matches)) {
-            return [];
-        }
-
-        foreach ($matches[1] as $block) {
-            $data = json_decode(html_entity_decode($block, ENT_QUOTES | ENT_HTML5), true);
-            if (! is_array($data)) {
-                $data = json_decode($block, true);
-            }
-            if (! is_array($data)) {
-                continue;
-            }
-
+        foreach ($this->jsonScriptPayloads($html) as $data) {
             $this->collectAspects($data, $aspects);
         }
 
@@ -562,20 +560,14 @@ class YandexMapsParser
         $reviews = [];
 
         foreach (($node['reviewResults']['reviews'] ?? []) as $raw) {
-            if (! is_array($raw) || empty($raw['reviewId'])) {
+            if (! is_array($raw)) {
                 continue;
             }
 
-            $author = $raw['author'] ?? null;
-            $authorName = is_array($author) ? ($author['name'] ?? null) : null;
-
-            $reviews[] = [
-                'yandex_review_id' => (string) $raw['reviewId'],
-                'author_name' => $authorName,
-                'rating' => isset($raw['rating']) ? (int) $raw['rating'] : null,
-                'text' => isset($raw['text']) ? (string) $raw['text'] : null,
-                'reviewed_at' => $raw['updatedTime'] ?? $raw['time'] ?? null,
-            ];
+            $review = $this->mapRawReview($raw);
+            if ($review !== null) {
+                $reviews[] = $review;
+            }
         }
 
         return [
@@ -589,24 +581,7 @@ class YandexMapsParser
 
     private function findRatingNode(string $html): ?array
     {
-        if (! preg_match_all('#<script[^>]*type="application/json"[^>]*>(.*?)</script>#s', $html, $matches)) {
-            if (! preg_match_all('#<script[^>]*class="state-view"[^>]*>(.*?)</script>#s', $html, $matches)) {
-                return null;
-            }
-        }
-
-        $blocks = $matches[1];
-        usort($blocks, fn ($a, $b) => strlen($b) <=> strlen($a));
-
-        foreach ($blocks as $block) {
-            $data = json_decode(html_entity_decode($block, ENT_QUOTES | ENT_HTML5), true);
-            if (! is_array($data)) {
-                $data = json_decode($block, true);
-            }
-            if (! is_array($data)) {
-                continue;
-            }
-
+        foreach ($this->jsonScriptPayloads($html) as $data) {
             $found = $this->searchRatingNode($data);
             if ($found !== null) {
                 return $found;
@@ -614,6 +589,30 @@ class YandexMapsParser
         }
 
         return null;
+    }
+
+    private function jsonScriptPayloads(string $html): array
+    {
+        if (! preg_match_all('#<script[^>]*type="application/json"[^>]*>(.*?)</script>#s', $html, $matches)
+            && ! preg_match_all('#<script[^>]*class="state-view"[^>]*>(.*?)</script>#s', $html, $matches)) {
+            return [];
+        }
+
+        $blocks = $matches[1];
+        usort($blocks, fn ($a, $b) => strlen($b) <=> strlen($a));
+
+        $payloads = [];
+        foreach ($blocks as $block) {
+            $data = json_decode(html_entity_decode($block, ENT_QUOTES | ENT_HTML5), true);
+            if (! is_array($data)) {
+                $data = json_decode($block, true);
+            }
+            if (is_array($data)) {
+                $payloads[] = $data;
+            }
+        }
+
+        return $payloads;
     }
 
     private function searchRatingNode(array $node): ?array

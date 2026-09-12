@@ -11,7 +11,7 @@ if [ ! -f .env ]; then
   fi
 fi
 
-if ! grep -q '^APP_KEY=base64:' .env 2>/dev/null; then
+if [ -z "${APP_KEY:-}" ] && ! grep -q '^APP_KEY=base64:' .env 2>/dev/null; then
   php artisan key:generate --force
 fi
 
@@ -54,7 +54,7 @@ role="${1:-app}"
 
 if [ "$role" = "queue" ]; then
   echo "Starting queue worker..."
-  exec php artisan queue:work --sleep=1 --tries=3 --timeout=300
+  exec php artisan queue:work --sleep=1 --tries=3 --timeout=1800
 fi
 
 echo "Starting HTTP server on :8000 (APP_ENV=${APP_ENV:-local})..."

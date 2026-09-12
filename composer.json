@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "maps-reviews/laravel-vue-yandex-maps",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Laravel + Vue SPA for Yandex Maps organization reviews.",
+    "keywords": ["laravel", "vue", "yandex-maps"],
     "license": "MIT",
     "require": {
         "php": "^8.2",
