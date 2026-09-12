@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+@source '../**/*.vue';
+
+@theme {
+    --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+    body {
+        font-family: var(--font-sans);
+        background:
+            radial-gradient(1200px 600px at 10% -10%, #dbeafe 0%, transparent 55%),
+            radial-gradient(900px 500px at 100% 0%, #e2e8f0 0%, transparent 50%),
+            #f8fafc;
+    }
+}
