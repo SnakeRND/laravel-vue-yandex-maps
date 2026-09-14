@@ -16,7 +16,7 @@ make up          # ENV=dev по умолчанию
 ```
 
 Приложение: http://127.0.0.1:8080  
-Логин: `demo@example.com` / `password`
+Логин: `demo@example.com` / `123987`
 
 Сервисы: `db` (PostgreSQL), `app` (HTTP), `queue` (воркер парсинга).
 
